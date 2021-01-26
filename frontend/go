@@ -1,0 +1,45 @@
+#!/bin/sh
+
+DEPLOY_HOST=$(cat deploy-host)
+DEPLOY_PATH=frontend
+
+go() {
+  case $1 in
+    build)
+      build
+      ;;
+    deploy)
+      deploy
+      ;;
+    "")
+      print_usage
+      exit 1
+      ;;
+    *)
+      echo invalid command: "$1"
+      print_usage
+      exit 1
+      ;;
+  esac
+}
+
+build() {
+  elm make src/Main.elm --output target/main.js
+  cp src/index.html target/index.html
+}
+
+deploy() {
+  build
+  scp target/* "$DEPLOY_HOST":$DEPLOY_PATH/
+}
+
+print_usage() {
+  echo usage: "$0" \<command\>
+}
+
+error() {
+	echo "$1"
+	exit 1
+}
+
+go "$1"
