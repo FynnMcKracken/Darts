@@ -1,11 +1,13 @@
 port module Main exposing (main)
 
 import Browser exposing (Document)
-import Html exposing (Html, button, div, h1, main_, table, td, text, th, thead, tr)
-import Html.Attributes exposing (class, style)
-import Html.Events exposing (onClick)
+import Html exposing (Html, button, div, h1, input, main_, table, tbody, td, text, th, thead, tr)
+import Html.Attributes exposing (attribute, class, classList, placeholder, style, type_, value)
+import Html.Events exposing (onClick, onInput)
+import Json.Encode as Encode exposing (null)
+import List
 import Maybe
-import String exposing (fromInt)
+import String
 import Svg exposing (circle, path, polyline, svg)
 import Svg.Attributes exposing (cx, cy, d, height, points, r, viewBox, width)
 import Json.Decode as Decode exposing (Decoder, Error)
@@ -23,6 +25,7 @@ main =
 
 -- PORTS
 
+port sendMessage : String -> Cmd msg
 port messageReceiver : (Decode.Value -> msg) -> Sub msg
 
 
@@ -30,41 +33,70 @@ port messageReceiver : (Decode.Value -> msg) -> Sub msg
 
 type alias Model = {
     lastHit: Maybe String,
-    currentPlayer: Int
+    players: List Player,
+    currentPlayer: Int,
+    newPlayerName: String
+  }
+
+type alias Player = {
+    name: String,
+    score: Int,
+    active: Bool
   }
 
 init : () -> (Model, Cmd Msg)
-init _ = ({lastHit = Nothing, currentPlayer = 0}, Cmd.none)
+init _ = ({lastHit = Nothing, players = [], currentPlayer = 0, newPlayerName = ""}, Cmd.none)
 
 
 -- UPDATE
 
 type Msg
-  = Recv (Result Error String) | NextPlayer
+  = Recv (Result Error GameState) | NextPlayer | NewPlayerNameChange String | AddNewPlayer
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    (Recv (Ok field1)) -> ({ model | lastHit = Just field1 }, Cmd.none)
+    (Recv (Ok state1)) -> (({ model | lastHit = state1.lastHit, players = state1.players }), Cmd.none)
     (Recv (Err _)) -> (model, Cmd.none)
-    NextPlayer -> ({model | currentPlayer = model.currentPlayer + 1}, Cmd.none)
+    NextPlayer -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("nextPlayer", Encode.null)])))
+    NewPlayerNameChange name -> ({model | newPlayerName = name}, Cmd.none)
+    AddNewPlayer -> (({ model | newPlayerName = "" }), sendMessage (Encode.encode 0 (newPlayerEncode model.newPlayerName)))
 
+
+newPlayerEncode : String -> Encode.Value
+newPlayerEncode name =
+    Encode.object [ ("newPlayer", Encode.string name) ]
 
 -- SUBSCRIPTIONS
+
+type alias GameState = {
+    lastHit: Maybe String,
+    players: List Player
+  }
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
   messageReceiver (decodeSuggestions >> Recv)
 
-decodeSuggestions : Decode.Value -> Result Error String
+decodeSuggestions : Decode.Value -> Result Error GameState
 decodeSuggestions =
-    Decode.decodeValue myDecoder
+    Decode.decodeValue gameStateDecoder
 
-myDecoder : Decoder String
-myDecoder = Decode.field "field" Decode.string
+gameStateDecoder : Decoder GameState
+gameStateDecoder = Decode.map2 GameState
+    (Decode.maybe (Decode.field "lastHit" Decode.string))
+    (Decode.field "players" playersDecoder)
 
+playersDecoder : Decoder (List Player)
+playersDecoder =
+    Decode.list (Decode.map3 Player
+        (Decode.field "name" Decode.string)
+        (Decode.field "score" Decode.int)
+        (Decode.field "active" Decode.bool)
+    )
 
 -- VIEW
+
 view : Model -> Document Msg
 view model = {
     title = title model,
@@ -73,6 +105,13 @@ view model = {
 
 title : Model -> String
 title _ = "Dart"
+
+renderRow : Player -> Html Msg
+renderRow player =
+    tr [ classList [("table-primary", player.active)] ]
+        [ td [] [ text player.name ]
+        , td [] [ text (String.fromInt(player.score)) ]
+        ]
 
 body : Model -> List (Html Msg)
 body model = [
@@ -85,26 +124,42 @@ body model = [
       ],
       div [class "row mb-4"] [
         div [class "col"] [
-          table [class "table"] [
-            thead [] [
-              th [][text "Player"],
-              th [][text "Score"]
+          table [class "table table-bordered table-hover"] [
+            thead [class "thead-light"] [
+              tr [] [
+                th [] [text "Player"],
+                th [] [text "Score"]
+              ]
             ],
-            tr [] [
-              td [class "active"][text "Foo"],
-              td [][text "42"]
-            ],
-            tr [] [
-              td [][text "Bar"],
-              td [][text "13"]
-            ]
-          ],
-          button [ onClick NextPlayer, class "btn btn-primary"] [ text (fromInt model.currentPlayer) ]
+            tbody [] ([] ++ (List.map renderRow model.players))
+          ]
+        ]
+      ],
+      div [class "row mt-4"] [
+        div [class "col"] [
+          button [ class "btn btn-primary", style "margin-right" "10px", onClick NextPlayer] [ text "Next player" ],
+          button [ class "btn btn-outline-secondary", attribute "data-target" "#modal", attribute "data-toggle" "modal"] [ text "Add player" ]
         ]
       ],
       div [class "row mb-2"] [
-        div [class "col"] [
+        div [class "col mb-2"] [
           dartBoard model
+        ]
+      ],
+      div [class "modal fade", attribute "id" "modal", attribute "role" "dialog"] [
+        div [class "modal-dialog"] [
+          div [class "modal-content"][
+            div [class "modal-header"] [
+              text "New player"
+            ],
+            div [class "modal-body"] [
+            input [class "form-control", type_ "text", placeholder "Name", onInput NewPlayerNameChange, value model.newPlayerName] []
+            ],
+            div [class "modal-footer"] [
+              button [ class "btn btn-secondary", attribute "data-dismiss" "modal"] [ text "Close" ],
+              button [ class "btn btn-primary", attribute "data-dismiss" "modal", onClick AddNewPlayer] [ text "Add player" ]
+            ]
+          ]
         ]
       ]
     ]

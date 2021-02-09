@@ -1,16 +1,22 @@
 import asyncio
-import json
 from asyncio.transports import BaseTransport
 
+import json
 import serial_asyncio
 import websockets
+import random
+
+import GameController
 
 HOST = '*'
 PORT = 50001
 
 USERS = set()
 
-hit_enum = [
+GAMESTATE = GameController.GameState()
+
+# This is only used to validate serial communication
+HIT_ENUM = [
     "20o", "20i", "20", "20x2", "20x3",
     "19o", "19i", "19x2", "19x3",
     "18o", "18i", "18x2", "18x3",
@@ -36,24 +42,20 @@ hit_enum = [
 
 
 # Websocket communication
-def hit_event(data):
-    return json.dumps({"type": "hit", "field": data})
+# def hit_event(data):
+#     return json.dumps({"type": "hit", "field": data})
 
 
-def users_event():
-    return json.dumps({"type": "users", "count": len(USERS)})
-
-
-async def notify_state(response):
-    if USERS:  # asyncio.wait doesn't accept an empty list
-        message = hit_event(response)
-        print("notify_state:", message)
-        await asyncio.wait([user.send(message) for user in USERS])
+# async def notify_state(response):
+#     if USERS:  # asyncio.wait doesn't accept an empty list
+#         message = hit_event(response)
+#         print("notify_state:", message)
+#         await asyncio.wait([user.send(message) for user in USERS])
 
 
 async def notify_users():
     if USERS:  # asyncio.wait doesn't accept an empty list
-        message = users_event()
+        message = GAMESTATE.to_json()
         await asyncio.wait([user.send(message) for user in USERS])
 
 
@@ -72,8 +74,17 @@ async def counter(websocket, path):
     await register(websocket)
     try:
         async for message in websocket:
-            data = json.loads(message)
-            websocket.send(data)
+            try:
+                data = json.loads(message)
+                if "nextPlayer" in data:
+                    GAMESTATE.next_player()
+                    GAMESTATE.lastHit = random.choice(HIT_ENUM)
+                    await notify_users()
+                if "newPlayer" in data:
+                    GAMESTATE.add_new_player(data["newPlayer"])
+                    await notify_users()
+            except json.JSONDecodeError:
+                pass
     except websockets.exceptions.ConnectionClosedError:
         pass
     finally:
@@ -99,7 +110,9 @@ class Output(asyncio.Protocol):
             for line in lines[:-1]:
                 message = line.decode("ascii")
                 print('message received:', message)
-                loop.create_task(notify_state(message))
+                if message in HIT_ENUM:
+                    GAMESTATE.lastHit = message
+                    loop.create_task(notify_users())
 
     def connection_lost(self, exc):
         print('port closed')
@@ -113,12 +126,12 @@ class Output(asyncio.Protocol):
         print('resume writing')
 
 
-# Server init
-print("Starting server ...")
-
-start_server = websockets.serve(counter, HOST, PORT)
 loop = asyncio.get_event_loop()
 
+# Server init
+start_server = websockets.serve(counter, HOST, PORT)
+
+# Serial init
 usb_device_file = open("../usb_device", "r")
 usb_device = usb_device_file.read().rstrip("\n")
 coro = serial_asyncio.create_serial_connection(loop, Output, usb_device, baudrate=9600)
@@ -126,4 +139,5 @@ coro = serial_asyncio.create_serial_connection(loop, Output, usb_device, baudrat
 group2 = asyncio.gather(coro)
 group1 = asyncio.gather(start_server)
 
+print("Server started.")
 loop.run_forever()

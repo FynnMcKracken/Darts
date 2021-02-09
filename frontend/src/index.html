@@ -22,7 +22,11 @@
         <script>
 var app = Elm.Main.init();
 
-var socket = new WebSocket('ws://192.168.178.74:50001');
+var socket = new WebSocket('ws://192.168.178.29:50001');
+
+app.ports.sendMessage.subscribe(function(message) {
+    socket.send(message);
+});
 
 socket.addEventListener("message", function(event) {
 	app.ports.messageReceiver.send(JSON.parse(event.data));
