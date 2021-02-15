@@ -1,10 +1,10 @@
 port module Main exposing (main)
 
 import Browser exposing (Document)
-import Html exposing (Html, button, div, h1, input, main_, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (attribute, class, classList, placeholder, style, type_, value)
+import Html exposing (Html, button, div, h1, h5, input, main_, table, tbody, td, text, th, thead, tr)
+import Html.Attributes exposing (attribute, class, classList, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
-import Json.Encode as Encode exposing (null)
+import Json.Encode as Encode
 import List
 import Maybe
 import String
@@ -41,7 +41,8 @@ type alias Model = {
 type alias Player = {
     name: String,
     score: Int,
-    active: Bool
+    active: Bool,
+    hits: List Int
   }
 
 init : () -> (Model, Cmd Msg)
@@ -51,7 +52,7 @@ init _ = ({lastHit = Nothing, players = [], currentPlayer = 0, newPlayerName = "
 -- UPDATE
 
 type Msg
-  = Recv (Result Error GameState) | NextPlayer | NewPlayerNameChange String | AddNewPlayer
+  = Recv (Result Error GameState) | NextPlayer | NewPlayerNameChange String | AddNewPlayer | ResetScore | MissHit
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -61,6 +62,8 @@ update msg model =
     NextPlayer -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("nextPlayer", Encode.null)])))
     NewPlayerNameChange name -> ({model | newPlayerName = name}, Cmd.none)
     AddNewPlayer -> (({ model | newPlayerName = "" }), sendMessage (Encode.encode 0 (newPlayerEncode model.newPlayerName)))
+    ResetScore -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("resetScore", Encode.null)])))
+    MissHit -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("missHit", Encode.null)])))
 
 
 newPlayerEncode : String -> Encode.Value
@@ -89,10 +92,11 @@ gameStateDecoder = Decode.map2 GameState
 
 playersDecoder : Decoder (List Player)
 playersDecoder =
-    Decode.list (Decode.map3 Player
+    Decode.list (Decode.map4 Player
         (Decode.field "name" Decode.string)
         (Decode.field "score" Decode.int)
         (Decode.field "active" Decode.bool)
+        (Decode.field "hits" (Decode.list Decode.int))
     )
 
 -- VIEW
@@ -106,10 +110,14 @@ view model = {
 title : Model -> String
 title _ = "Dart"
 
+renderHit : Int -> Html Msg
+renderHit hit = div [ class "badge badge-pill hit-badge", classList[("badge-danger", hit == 0), ("badge-success", hit /= 0)]] [ text (String.fromInt(hit))]
+
 renderRow : Player -> Html Msg
 renderRow player =
     tr [ classList [("table-primary", player.active)] ]
         [ td [] [ text player.name ]
+        , td [class "hits-cell"] ([] ++ (List.map renderHit player.hits))
         , td [] [ text (String.fromInt(player.score)) ]
         ]
 
@@ -128,6 +136,7 @@ body model = [
             thead [class "thead-light"] [
               tr [] [
                 th [] [text "Player"],
+                th [] [text "Hits"],
                 th [] [text "Score"]
               ]
             ],
@@ -137,8 +146,10 @@ body model = [
       ],
       div [class "row mt-4"] [
         div [class "col"] [
-          button [ class "btn btn-primary", style "margin-right" "10px", onClick NextPlayer] [ text "Next player" ],
-          button [ class "btn btn-outline-secondary", attribute "data-target" "#modal", attribute "data-toggle" "modal"] [ text "Add player" ]
+          button [ class "btn btn-primary game-button", onClick NextPlayer] [ text "Next player" ],
+          button [ class "btn btn-outline-secondary game-button", attribute "data-target" "#modal-new-player", attribute "data-toggle" "modal"] [ text "Add player" ],
+          button [ class "btn btn-danger float-right game-button", onClick MissHit] [ text "Missed hit" ],
+          button [ class "btn btn-outline-danger float-right game-button", attribute "data-target" "#modal-reset-score", attribute "data-toggle" "modal"] [ text "Reset scores" ]
         ]
       ],
       div [class "row mb-2"] [
@@ -146,11 +157,11 @@ body model = [
           dartBoard model
         ]
       ],
-      div [class "modal fade", attribute "id" "modal", attribute "role" "dialog"] [
+      div [class "modal fade", id "modal-new-player", attribute "role" "dialog"] [
         div [class "modal-dialog"] [
           div [class "modal-content"][
             div [class "modal-header"] [
-              text "New player"
+              h5[] [text "New player"]
             ],
             div [class "modal-body"] [
             input [class "form-control", type_ "text", placeholder "Name", onInput NewPlayerNameChange, value model.newPlayerName] []
@@ -161,7 +172,23 @@ body model = [
             ]
           ]
         ]
-      ]
+      ],
+      div [class "modal fade", id "modal-reset-score", attribute "role" "dialog"] [
+              div [class "modal-dialog"] [
+                div [class "modal-content"][
+                  div [class "modal-header"] [
+                    h5[] [text "Reset scores"]
+                  ],
+                  div [class "modal-body"] [
+                  text "Reset scores for all players?"
+                  ],
+                  div [class "modal-footer"] [
+                    button [ class "btn btn-secondary", attribute "data-dismiss" "modal"] [ text "Close" ],
+                    button [ class "btn btn-danger", attribute "data-dismiss" "modal", onClick ResetScore] [ text "Reset" ]
+                  ]
+                ]
+              ]
+            ]
     ]
   ]
 

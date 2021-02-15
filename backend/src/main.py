@@ -15,31 +15,6 @@ USERS = set()
 
 GAMESTATE = GameController.GameState()
 
-# This is only used to validate serial communication
-HIT_ENUM = [
-    "20o", "20i", "20", "20x2", "20x3",
-    "19o", "19i", "19x2", "19x3",
-    "18o", "18i", "18x2", "18x3",
-    "17o", "17i", "17x2", "17x3",
-    "16o", "16i", "16x2", "16x3",
-    "15o", "15i", "15x2", "15x3",
-    "14o", "14i", "14x2", "14x3",
-    "13o", "13i", "13x2", "13x3",
-    "12o", "12i", "12x2", "12x3",
-    "11o", "11i", "11x2", "11x3",
-    "10o", "10i", "10x2", "10x3",
-    "9o", "9i", "9x2", "9x3",
-    "8o", "8i", "8x2", "8x3",
-    "7o", "7i", "7x2", "7x3",
-    "6o", "6i", "6x2", "6x3",
-    "5o", "5i", "5x2", "5x3",
-    "4o", "4i", "4x2", "4x3",
-    "3o", "3i", "3x2", "3x3",
-    "2o", "2i", "2x2", "2x3",
-    "1o", "1i", "1x2", "1x3",
-    "Bullseye", "Bullseyex2"
-]
-
 
 # Websocket communication
 async def notify_users():
@@ -67,10 +42,16 @@ async def counter(websocket, path):
                 data = json.loads(message)
                 if "nextPlayer" in data:
                     GAMESTATE.next_player()
-                    GAMESTATE.lastHit = random.choice(HIT_ENUM)
+                    GAMESTATE.process_hit_event(random.choice(list(GameController.HIT_ENUM.keys())))
                     await notify_users()
                 if "newPlayer" in data:
                     GAMESTATE.add_new_player(data["newPlayer"])
+                    await notify_users()
+                if "missHit" in data:
+                    GAMESTATE.process_miss()
+                    await notify_users()
+                if "resetScore" in data:
+                    GAMESTATE.reset_score()
                     await notify_users()
             except json.JSONDecodeError:
                 pass
@@ -99,8 +80,8 @@ class Output(asyncio.Protocol):
             for line in lines[:-1]:
                 message = line.decode("ascii")
                 print('message received:', message)
-                if message in HIT_ENUM:
-                    GAMESTATE.lastHit = message
+                if message in GameController.HIT_ENUM:
+                    GAMESTATE.process_hit_event(message)
                     loop.create_task(notify_users())
 
     def connection_lost(self, exc):

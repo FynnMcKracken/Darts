@@ -1,0 +1,11 @@
+.game-button {
+    margin-right: 10px;
+}
+
+.hits-cell {
+    width: 18em;
+}
+
+.hit-badge {
+    margin-right: 5px;
+}
