@@ -42,17 +42,6 @@ HIT_ENUM = [
 
 
 # Websocket communication
-# def hit_event(data):
-#     return json.dumps({"type": "hit", "field": data})
-
-
-# async def notify_state(response):
-#     if USERS:  # asyncio.wait doesn't accept an empty list
-#         message = hit_event(response)
-#         print("notify_state:", message)
-#         await asyncio.wait([user.send(message) for user in USERS])
-
-
 async def notify_users():
     if USERS:  # asyncio.wait doesn't accept an empty list
         message = GAMESTATE.to_json()
