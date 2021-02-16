@@ -2,7 +2,7 @@ port module Main exposing (main)
 
 import Browser exposing (Document)
 import Html exposing (Html, button, div, h1, h5, input, main_, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (attribute, class, classList, id, placeholder, style, type_, value)
+import Html.Attributes exposing (attribute, class, classList, disabled, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Json.Encode as Encode
 import List
@@ -32,6 +32,7 @@ port messageReceiver : (Decode.Value -> msg) -> Sub msg
 -- MODEL
 
 type alias Model = {
+    gameRunning: Bool,
     lastHit: Maybe String,
     players: List Player,
     currentPlayer: Int,
@@ -46,19 +47,20 @@ type alias Player = {
   }
 
 init : () -> (Model, Cmd Msg)
-init _ = ({lastHit = Nothing, players = [], currentPlayer = 0, newPlayerName = ""}, Cmd.none)
+init _ = ({gameRunning = False, lastHit = Nothing, players = [], currentPlayer = 0, newPlayerName = ""}, Cmd.none)
 
 
 -- UPDATE
 
 type Msg
-  = Recv (Result Error GameState) | NextPlayer | NewPlayerNameChange String | AddNewPlayer | ResetScore | MissHit
+  = Recv (Result Error GameState) | StartGame | NextPlayer | NewPlayerNameChange String | AddNewPlayer | ResetScore | MissHit
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    (Recv (Ok state1)) -> (({ model | lastHit = state1.lastHit, players = state1.players }), Cmd.none)
+    (Recv (Ok state1)) -> (({ model | gameRunning = state1.running, lastHit = state1.lastHit, players = state1.players }), Cmd.none)
     (Recv (Err _)) -> (model, Cmd.none)
+    StartGame -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("startGame", Encode.null)])))
     NextPlayer -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("nextPlayer", Encode.null)])))
     NewPlayerNameChange name -> ({model | newPlayerName = name}, Cmd.none)
     AddNewPlayer -> (({ model | newPlayerName = "" }), sendMessage (Encode.encode 0 (newPlayerEncode model.newPlayerName)))
@@ -73,6 +75,7 @@ newPlayerEncode name =
 -- SUBSCRIPTIONS
 
 type alias GameState = {
+    running: Bool,
     lastHit: Maybe String,
     players: List Player
   }
@@ -86,7 +89,8 @@ decodeSuggestions =
     Decode.decodeValue gameStateDecoder
 
 gameStateDecoder : Decoder GameState
-gameStateDecoder = Decode.map2 GameState
+gameStateDecoder = Decode.map3 GameState
+    (Decode.field "running" Decode.bool)
     (Decode.maybe (Decode.field "lastHit" Decode.string))
     (Decode.field "players" playersDecoder)
 
@@ -146,10 +150,15 @@ body model = [
       ],
       div [class "row mt-4"] [
         div [class "col"] [
-          button [ class "btn btn-primary game-button", onClick NextPlayer] [ text "Next player" ],
-          button [ class "btn btn-outline-secondary game-button", attribute "data-target" "#modal-new-player", attribute "data-toggle" "modal"] [ text "Add player" ],
-          button [ class "btn btn-danger float-right game-button", onClick MissHit] [ text "Missed hit" ],
-          button [ class "btn btn-outline-danger float-right game-button", attribute "data-target" "#modal-reset-score", attribute "data-toggle" "modal"] [ text "Reset scores" ]
+          button [ class "btn btn-primary game-button", disabled (not model.gameRunning), onClick NextPlayer] [ text "Next player" ],
+          button [ class "btn btn-outline-secondary game-button", disabled model.gameRunning, attribute "data-target" "#modal-new-player", attribute "data-toggle" "modal"] [ text "Add player" ]
+        ],
+        div [class "col text-center"] [
+            button [ class "btn btn-success", disabled model.gameRunning, onClick StartGame] [ text "Start game" ]
+        ],
+        div [class "col text-right"] [
+          button [ class "btn btn-outline-danger game-button", disabled (not model.gameRunning), attribute "data-target" "#modal-reset-score", attribute "data-toggle" "modal"] [ text "Reset game" ],
+          button [ class "btn btn-danger", disabled (not model.gameRunning), onClick MissHit] [ text "Missed hit" ]
         ]
       ],
       div [class "row mb-2"] [
@@ -177,10 +186,10 @@ body model = [
               div [class "modal-dialog"] [
                 div [class "modal-content"][
                   div [class "modal-header"] [
-                    h5[] [text "Reset scores"]
+                    h5[] [text "Reset game"]
                   ],
                   div [class "modal-body"] [
-                  text "Reset scores for all players?"
+                  text "Do you want to reset the current game?"
                   ],
                   div [class "modal-footer"] [
                     button [ class "btn btn-secondary", attribute "data-dismiss" "modal"] [ text "Close" ],

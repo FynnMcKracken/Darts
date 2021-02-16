@@ -29,14 +29,15 @@ HIT_ENUM = {
 class GameState:
 
     def __init__(self):
-        self.players = [
-            Player("Foo", 501),
-            Player("Bar", 501),
-            Player("Baz", 501)
-        ]
+        self.players = []
         self.player_iter = cycle(self.players)
-        self.active_player = next(self.player_iter)
+        self.active_player = None
         self.lastHit = None
+        self.running = False
+
+    def start_game(self):
+        self.active_player = next(self.player_iter)
+        self.running = True
 
     def process_hit_event(self, message):
         self.lastHit = message
@@ -63,12 +64,17 @@ class GameState:
         for p in self.players:
             p.hits = []
 
-    def reset_score(self):
+    def reset_scores(self):
+        self.lastHit = None
+        self.active_player = None
+        self.running = False
         for p in self.players:
             p.score = 501
+            p.hits = []
 
     def to_json(self):
         players_dict = {
+            "running": self.running,
             "lastHit": self.lastHit,
             "players": [{**vars(p), "active": self.active_player == p} for p in self.players]
         }
@@ -85,4 +91,3 @@ class Player:
     def update_score(self, points):
         self.hits.append(points)
         self.score = self.score - points
-

@@ -14,6 +14,9 @@ PORT = 50001
 USERS = set()
 
 GAMESTATE = GameController.GameState()
+GAMESTATE.add_new_player("Foo")
+GAMESTATE.add_new_player("Bar")
+GAMESTATE.add_new_player("Baz")
 
 
 # Websocket communication
@@ -40,6 +43,9 @@ async def counter(websocket, path):
         async for message in websocket:
             try:
                 data = json.loads(message)
+                if "startGame" in data:
+                    GAMESTATE.start_game()
+                    await notify_users()
                 if "nextPlayer" in data:
                     GAMESTATE.next_player()
                     GAMESTATE.process_hit_event(random.choice(list(GameController.HIT_ENUM.keys())))
@@ -51,7 +57,7 @@ async def counter(websocket, path):
                     GAMESTATE.process_miss()
                     await notify_users()
                 if "resetScore" in data:
-                    GAMESTATE.reset_score()
+                    GAMESTATE.reset_scores()
                     await notify_users()
             except json.JSONDecodeError:
                 pass
