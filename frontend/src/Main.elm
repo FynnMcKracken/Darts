@@ -162,7 +162,7 @@ body model = [
         ]
       ],
       div [class "row mb-2"] [
-        div [class "col mb-2"] [
+        div [class "col mb-2 text-center"] [
           dartBoard model
         ]
       ],
