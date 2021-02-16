@@ -45,20 +45,16 @@ async def counter(websocket, path):
                 data = json.loads(message)
                 if "startGame" in data:
                     GAMESTATE.start_game()
-                    await notify_users()
                 if "nextPlayer" in data:
                     GAMESTATE.next_player()
                     GAMESTATE.process_hit_event(random.choice(list(GameController.HIT_ENUM.keys())))
-                    await notify_users()
                 if "newPlayer" in data:
                     GAMESTATE.add_new_player(data["newPlayer"])
-                    await notify_users()
                 if "missHit" in data:
                     GAMESTATE.process_miss()
-                    await notify_users()
                 if "resetScore" in data:
-                    GAMESTATE.reset_scores()
-                    await notify_users()
+                    GAMESTATE.reset_game()
+                await notify_users()
             except json.JSONDecodeError:
                 pass
     except websockets.exceptions.ConnectionClosedError:

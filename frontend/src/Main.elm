@@ -43,7 +43,8 @@ type alias Player = {
     name: String,
     score: Int,
     active: Bool,
-    hits: List Int
+    hits: List Int,
+    winner: Bool
   }
 
 init : () -> (Model, Cmd Msg)
@@ -96,11 +97,12 @@ gameStateDecoder = Decode.map3 GameState
 
 playersDecoder : Decoder (List Player)
 playersDecoder =
-    Decode.list (Decode.map4 Player
+    Decode.list (Decode.map5 Player
         (Decode.field "name" Decode.string)
         (Decode.field "score" Decode.int)
         (Decode.field "active" Decode.bool)
         (Decode.field "hits" (Decode.list Decode.int))
+        (Decode.field "winner" Decode.bool)
     )
 
 -- VIEW
@@ -119,7 +121,7 @@ renderHit hit = div [ class "badge badge-pill hit-badge", classList[("badge-dang
 
 renderRow : Player -> Html Msg
 renderRow player =
-    tr [ classList [("table-primary", player.active)] ]
+    tr [ classList [("table-primary", player.active && not player.winner), ("table-success", player.winner)] ]
         [ td [] [ text player.name ]
         , td [class "hits-cell"] ([] ++ (List.map renderHit player.hits))
         , td [] [ text (String.fromInt(player.score)) ]

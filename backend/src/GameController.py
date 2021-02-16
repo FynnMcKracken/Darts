@@ -34,15 +34,20 @@ class GameState:
         self.active_player = None
         self.lastHit = None
         self.running = False
+        self.finished = False
 
     def start_game(self):
         self.active_player = next(self.player_iter)
+        if self.finished:
+            self.reset_game()
         self.running = True
 
     def process_hit_event(self, message):
         self.lastHit = message
         if len(self.active_player.hits) < 3:
-            self.active_player.update_score(HIT_ENUM[message])
+            if self.active_player.update_score(HIT_ENUM[message]):
+                self.finished = True
+                self.running = False
 
     def process_miss(self):
         self.process_hit_event("Miss")
@@ -57,20 +62,19 @@ class GameState:
     def next_player(self):
         next_player = next(self.player_iter)
         if self.players[0] == next_player:
-            self.reset_hits()
+            for p in self.players:
+                p.reset()
         self.active_player = next_player
 
-    def reset_hits(self):
-        for p in self.players:
-            p.hits = []
-
-    def reset_scores(self):
+    def reset_game(self):
         self.lastHit = None
         self.active_player = None
         self.running = False
+        self.finished = False
+        self.player_iter = cycle(self.players)
         for p in self.players:
-            p.score = 501
-            p.hits = []
+            p.score = 51
+            p.reset()
 
     def to_json(self):
         players_dict = {
@@ -87,7 +91,18 @@ class Player:
         self.name = name
         self.score = score
         self.hits = []
+        self.winner = False
+
+    def reset(self):
+        self.__init__(self.name, self.score)
 
     def update_score(self, points):
         self.hits.append(points)
-        self.score = self.score - points
+        score = self.score - points
+        if score >= 0:
+            self.score = self.score - points
+            if score == 0:
+                self.winner = True
+                return True
+        return False
+
