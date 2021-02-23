@@ -31,7 +31,10 @@ port messageReceiver : (Decode.Value -> msg) -> Sub msg
 
 -- MODEL
 
+type GameMode = Standard
+
 type alias Model = {
+    gameMode: GameMode,
     gameRunning: Bool,
     lastHit: Maybe String,
     players: List Player,
@@ -41,15 +44,13 @@ type alias Model = {
 
 type alias Player = {
     name: String,
-    score: Int,
-    active: Bool,
+    score: List(String, Int),
     hits: List Int,
-    winner: Bool
+    state: String
   }
 
 init : () -> (Model, Cmd Msg)
-init _ = ({gameRunning = False, lastHit = Nothing, players = [], currentPlayer = 0, newPlayerName = ""}, Cmd.none)
-
+init _ = ({gameRunning = False, lastHit = Nothing, players = [], currentPlayer = 0, newPlayerName = "", gameMode = Standard}, Cmd.none)
 
 -- UPDATE
 
@@ -59,14 +60,14 @@ type Msg
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
   case msg of
-    (Recv (Ok state1)) -> (({ model | gameRunning = state1.running, lastHit = state1.lastHit, players = state1.players }), Cmd.none)
+    (Recv (Ok state1)) -> (({ model | gameMode = state1.mode, gameRunning = state1.running, lastHit = state1.lastHit, players = state1.players }), Cmd.none)
     (Recv (Err _)) -> (model, Cmd.none)
     StartGame -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("startGame", Encode.null)])))
     NextPlayer -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("nextPlayer", Encode.null)])))
-    NewPlayerNameChange name -> ({model | newPlayerName = name}, Cmd.none)
-    AddNewPlayer -> (({ model | newPlayerName = "" }), sendMessage (Encode.encode 0 (newPlayerEncode model.newPlayerName)))
     ResetScore -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("resetScore", Encode.null)])))
     MissHit -> (model, sendMessage (Encode.encode 0 (Encode.object[ ("missHit", Encode.null)])))
+    NewPlayerNameChange name -> ({model | newPlayerName = name}, Cmd.none)
+    AddNewPlayer -> (({ model | newPlayerName = "" }), sendMessage (Encode.encode 0 (newPlayerEncode model.newPlayerName)))
 
 
 newPlayerEncode : String -> Encode.Value
@@ -76,6 +77,7 @@ newPlayerEncode name =
 -- SUBSCRIPTIONS
 
 type alias GameState = {
+    mode: GameMode,
     running: Bool,
     lastHit: Maybe String,
     players: List Player
@@ -90,19 +92,25 @@ decodeSuggestions =
     Decode.decodeValue gameStateDecoder
 
 gameStateDecoder : Decoder GameState
-gameStateDecoder = Decode.map3 GameState
+gameStateDecoder = Decode.map4 GameState
+    (Decode.field "gameMode" Decode.string |> Decode.andThen gameModeDecoder)
     (Decode.field "running" Decode.bool)
     (Decode.maybe (Decode.field "lastHit" Decode.string))
     (Decode.field "players" playersDecoder)
 
+gameModeDecoder : String -> Decoder GameMode
+gameModeDecoder gameMode =
+    case gameMode of
+        "standard" -> Decode.succeed Standard
+        _ -> Decode.fail ("The string " ++ gameMode ++ " is not a valid game mode")
+
 playersDecoder : Decoder (List Player)
 playersDecoder =
-    Decode.list (Decode.map5 Player
+    Decode.list (Decode.map4 Player
         (Decode.field "name" Decode.string)
-        (Decode.field "score" Decode.int)
-        (Decode.field "active" Decode.bool)
+        (Decode.field "score" (Decode.keyValuePairs Decode.int))
         (Decode.field "hits" (Decode.list Decode.int))
-        (Decode.field "winner" Decode.bool)
+        (Decode.field "state" Decode.string)
     )
 
 -- VIEW
@@ -115,17 +123,6 @@ view model = {
 
 title : Model -> String
 title _ = "Dart"
-
-renderHit : Int -> Html Msg
-renderHit hit = div [ class "badge badge-pill hit-badge", classList[("badge-danger", hit == 0), ("badge-success", hit /= 0)]] [ text (String.fromInt(hit))]
-
-renderRow : Player -> Html Msg
-renderRow player =
-    tr [ classList [("table-primary", player.active && not player.winner), ("table-success", player.winner)] ]
-        [ td [] [ text player.name ]
-        , td [class "hits-cell"] ([] ++ (List.map renderHit player.hits))
-        , td [] [ text (String.fromInt(player.score)) ]
-        ]
 
 body : Model -> List (Html Msg)
 body model = [
@@ -146,7 +143,7 @@ body model = [
                 th [] [text "Score"]
               ]
             ],
-            tbody [] ([] ++ (List.map renderRow model.players))
+            tbody [] ([] ++ (List.map (renderRow model.gameMode) model.players))
           ]
         ]
       ],
@@ -202,6 +199,22 @@ body model = [
             ]
     ]
   ]
+
+renderHit : Int -> Html Msg
+renderHit hit = div [ class "badge badge-pill hit-badge", classList[("badge-danger", hit == 0), ("badge-success", hit /= 0)]] [ text (String.fromInt(hit))]
+
+renderScore : GameMode -> (String, Int) -> Html Msg
+renderScore gameMode score =
+    case gameMode of
+        Standard -> text (String.fromInt(Tuple.second(score)))
+
+renderRow : GameMode -> Player -> Html Msg
+renderRow gameMode player =
+    tr [ classList [("table-primary", player.state == "Playing"), ("table-success", player.state == "Finished"), ("table-secondary", player.state == "Blocked")] ]
+        [ td [] [ text player.name ]
+        , td [class "hits-cell"] ([] ++ (List.map renderHit player.hits))
+        , td [] ([] ++ (List.map (renderScore gameMode) player.score))
+        ]
 
 dartBoard : Model -> Html msg
 dartBoard model =

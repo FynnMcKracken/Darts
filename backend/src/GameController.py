@@ -1,7 +1,11 @@
 import json
-from itertools import cycle
+from enum import Enum
+from random import choice
 
-HIT_ENUM = {
+from typing import List, Dict, Optional
+from abc import ABC, abstractmethod
+
+HIT_ENUM: Dict[str, int] = {
     "20o": 20, "20i": 20, "20x2": 40, "20x3": 60,
     "19o": 19, "19i": 19, "19x2": 38, "19x3": 57,
     "18o": 18, "18i": 18, "18x2": 36, "18x3": 54,
@@ -26,83 +30,160 @@ HIT_ENUM = {
 }
 
 
-class GameState:
+class GameState(Enum):
+    IDLE = 0
+    RUNNING = 1
+    FINISHED = 2
 
-    def __init__(self):
-        self.players = []
-        self.player_iter = cycle(self.players)
-        self.active_player = None
-        self.lastHit = None
-        self.running = False
-        self.finished = False
 
-    def start_game(self):
-        self.active_player = next(self.player_iter)
-        if self.finished:
-            self.reset_game()
-        self.running = True
+class GameMode(Enum):
+    STANDARD = "standard"
 
-    def process_hit_event(self, message):
-        self.lastHit = message
-        if len(self.active_player.hits) < 3:
-            if self.active_player.update_score(HIT_ENUM[message]):
-                self.finished = True
-                self.running = False
 
-    def process_miss(self):
-        self.process_hit_event("Miss")
-
-    def register_new_player(self, player):
-        self.players.append(player)
-
-    def add_new_player(self, name):
-        player = Player(name, 501)
-        self.players.append(player)
-
-    def next_player(self):
-        next_player = next(self.player_iter)
-        if self.players[0] == next_player:
-            for p in self.players:
-                p.reset()
-        self.active_player = next_player
-
-    def reset_game(self):
-        self.lastHit = None
-        self.active_player = None
-        self.running = False
-        self.finished = False
-        self.player_iter = cycle(self.players)
-        for p in self.players:
-            p.score = 51
-            p.reset()
-
-    def to_json(self):
-        players_dict = {
-            "running": self.running,
-            "lastHit": self.lastHit,
-            "players": [{**vars(p), "active": self.active_player == p} for p in self.players]
-        }
-        return json.dumps(players_dict)
+class PlayerState(str, Enum):
+    IDLE = "Idle"
+    PLAYING = "Playing"
+    BLOCKED = "Blocked"
+    FINISHED = "Finished"
 
 
 class Player:
+    hits: List[int]
 
-    def __init__(self, name, score):
-        self.name = name
-        self.score = score
-        self.hits = []
-        self.winner = False
+    def __init__(self, name: str):
+        self.name: str = name
+        self.score: Dict[str, int] = {}
+        self.hits: List[int] = []
+        self.state: PlayerState = PlayerState.IDLE
 
-    def reset(self):
-        self.__init__(self.name, self.score)
 
-    def update_score(self, points):
-        self.hits.append(points)
-        score = self.score - points
-        if score >= 0:
-            self.score = self.score - points
-            if score == 0:
-                self.winner = True
-                return True
-        return False
+class GameController:
 
+    def __init__(self):
+        self.lastHit = "Miss"
+        self.running_state = GameState.IDLE
+        self.gameLogic = StandardGameLogic()
+
+    def start_game(self):
+        if self.running_state == GameState.FINISHED:
+            self.reset_game()
+        self.gameLogic.next_player()
+        self.running_state = GameState.RUNNING
+
+    def process_hit_message(self, message: str):
+        self.lastHit = message
+        if self.running_state == GameState.RUNNING:
+            self.running_state = self.gameLogic.process_hit(message)
+
+    def process_miss(self):
+        self.process_hit_message("Miss")
+
+    def add_new_player(self, name: str):
+        if self.running_state != GameState.RUNNING:
+            self.gameLogic.add_player(name)
+
+    def next_player(self):
+        if self.running_state == GameState.RUNNING:
+            self.gameLogic.next_player()
+
+    def reset_game(self):
+        self.lastHit = None
+        self.running_state = GameState.IDLE
+        self.gameLogic.reset_players()
+
+    def to_json(self):
+        players_dict = {
+            "running": self.running_state == GameState.RUNNING,
+            "lastHit": self.lastHit,
+            "gameMode": self.gameLogic.identifier.value,
+            "players": [{**vars(p)} for p in self.gameLogic.players]
+        }
+        print(json.dumps(players_dict))
+        return json.dumps(players_dict)
+
+    # For testing & debugging purposes only
+    def random_hit(self):
+        self.process_hit_message(choice(list(HIT_ENUM.keys())))
+
+
+class GameLogic(ABC):
+    active_player: Optional[Player]
+    players: List[Player]
+    identifier: GameMode
+
+    def __init__(self):
+        self.players = []
+        self.reset_players()
+
+    @property
+    @abstractmethod
+    def identifier(self):
+        pass
+
+    @abstractmethod
+    def init_player(self, player: Player):
+        pass
+
+    def add_player(self, name: str):
+        player = Player(name)
+        self.init_player(player)
+        self.players.append(player)
+
+    def reset_players(self):
+        self.active_player = None
+        for p in self.players:
+            self.init_player(p)
+
+
+class CyclicGameLogic(GameLogic, ABC):
+
+    def __init__(self):
+        super().__init__()
+
+    def reset_players(self):
+        GameLogic.reset_players(self)
+
+    def next_player(self):
+        if self.active_player is None and len(self.players) > 0:
+            self.active_player = self.players[0]
+            self.active_player.state = PlayerState.PLAYING
+        else:
+            if self.active_player.state is not PlayerState.FINISHED:
+                self.active_player.state = PlayerState.IDLE
+
+            for i in range(len(self.players)):
+                if self.players[i] == self.active_player:
+                    next_player_1 = self.players[(i + 1) % len(self.players)]
+                    if next_player_1.state == PlayerState.IDLE:
+                        next_player_1.state = PlayerState.PLAYING
+                        self.active_player = next_player_1
+                        break
+
+            if self.players[0] == self.active_player:
+                for p in self.players:
+                    p.hits = []
+
+
+class StandardGameLogic(CyclicGameLogic):
+    identifier: GameMode = GameMode.STANDARD
+
+    def process_hit(self, message: str) -> GameState:
+        if len(self.active_player.hits) < 3 and self.active_player.state == PlayerState.PLAYING:
+            hit: int = HIT_ENUM[message]
+            self.active_player.hits.append(hit)
+            score = self.active_player.score["points"] - hit
+            if score >= 0:
+                self.active_player.score["points"] = score
+                if score == 0:
+                    self.active_player.state = PlayerState.FINISHED
+                    return GameState.FINISHED
+                elif len(self.active_player.hits) == 3:
+                    self.active_player.state = PlayerState.BLOCKED
+            else:
+                self.active_player.state = PlayerState.BLOCKED
+        return GameState.RUNNING
+
+    def init_player(self, player: Player):
+        player.hits = []
+        player.state = PlayerState.IDLE
+        player.score = {"points": 501}
