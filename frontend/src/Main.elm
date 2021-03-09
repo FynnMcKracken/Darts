@@ -1,16 +1,16 @@
 port module Main exposing (main)
 
 import Browser exposing (Document)
-import Html exposing (Html, button, div, h1, h5, input, main_, table, tbody, td, text, th, thead, tr)
-import Html.Attributes exposing (attribute, class, classList, disabled, id, placeholder, style, type_, value)
+import Html exposing (Html, button, div, h1, h5, input, main_, span, table, tbody, td, text, th, thead, tr)
+import Html.Attributes exposing (attribute, autofocus, class, classList, disabled, href, id, placeholder, style, type_, value)
 import Html.Events exposing (onClick, onInput)
 import Json.Decode as Decode exposing (Decoder, Error)
 import Json.Encode as Encode
-import List
+import List exposing (foldr, singleton)
 import Maybe
 import String
-import Svg exposing (circle, path, polyline, svg)
-import Svg.Attributes exposing (cx, cy, d, height, points, r, viewBox, width)
+import Svg exposing (Svg, circle, line, path, polyline, svg)
+import Svg.Attributes exposing (cx, cy, d, height, points, r, viewBox, width, x1, x2, y1, y2)
 
 
 main : Program () Model Msg
@@ -39,10 +39,12 @@ port messageReceiver : (Decode.Value -> msg) -> Sub msg
 
 type GameMode
     = Standard
+    | Cricket
 
 
 type alias Model =
     { gameMode : GameMode
+    , selectMode : GameMode
     , gameRunning : Bool
     , lastHit : Maybe String
     , players : List Player
@@ -52,16 +54,17 @@ type alias Model =
 
 
 type alias Player =
-    { name : String
+    { uuid : String
+    , name : String
     , score : List ( String, Int )
-    , hits : List Int
+    , hits : List String
     , state : String
     }
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( { gameRunning = False, lastHit = Nothing, players = [], currentPlayer = 0, newPlayerName = "", gameMode = Standard }, Cmd.none )
+    ( { gameRunning = False, lastHit = Nothing, players = [], currentPlayer = 0, newPlayerName = "", gameMode = Standard, selectMode = Standard }, Cmd.none )
 
 
 
@@ -76,6 +79,9 @@ type Msg
     | AddNewPlayer
     | ResetScore
     | MissHit
+    | RemovePlayer String
+    | SelectGameMode GameMode
+    | ChangeGameMode GameMode
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -103,12 +109,27 @@ update msg model =
             ( { model | newPlayerName = name }, Cmd.none )
 
         AddNewPlayer ->
-            ( { model | newPlayerName = "" }, sendMessage (Encode.encode 0 (newPlayerEncode model.newPlayerName)) )
+            ( { model | newPlayerName = "" }, sendMessage (Encode.encode 0 (Encode.object [ ( "newPlayer", Encode.string model.newPlayerName ) ])) )
+
+        RemovePlayer uuid ->
+            ( model, sendMessage (Encode.encode 0 (removePlayer uuid)) )
+
+        SelectGameMode Standard ->
+            ( { model | selectMode = Standard }, Cmd.none )
+
+        SelectGameMode Cricket ->
+            ( { model | selectMode = Cricket }, Cmd.none )
+
+        ChangeGameMode Standard ->
+            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "gameMode", Encode.string "Standard" ) ])) )
+
+        ChangeGameMode Cricket ->
+            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "gameMode", Encode.string "Cricket" ) ])) )
 
 
-newPlayerEncode : String -> Encode.Value
-newPlayerEncode name =
-    Encode.object [ ( "newPlayer", Encode.string name ) ]
+removePlayer : String -> Encode.Value
+removePlayer uuid =
+    Encode.object [ ( "removePlayer", Encode.string uuid ) ]
 
 
 
@@ -145,8 +166,11 @@ gameStateDecoder =
 gameModeDecoder : String -> Decoder GameMode
 gameModeDecoder gameMode =
     case gameMode of
-        "standard" ->
+        "Standard" ->
             Decode.succeed Standard
+
+        "Cricket" ->
+            Decode.succeed Cricket
 
         _ ->
             Decode.fail ("The string " ++ gameMode ++ " is not a valid game mode")
@@ -155,10 +179,11 @@ gameModeDecoder gameMode =
 playersDecoder : Decoder (List Player)
 playersDecoder =
     Decode.list
-        (Decode.map4 Player
+        (Decode.map5 Player
+            (Decode.field "uuid" Decode.string)
             (Decode.field "name" Decode.string)
             (Decode.field "score" (Decode.keyValuePairs Decode.int))
-            (Decode.field "hits" (Decode.list Decode.int))
+            (Decode.field "hits" (Decode.list Decode.string))
             (Decode.field "state" Decode.string)
         )
 
@@ -186,6 +211,15 @@ body model =
             [ div [ class "col" ]
                 [ h1 [] [ text "Dart" ]
                 , div [] [ text ("last hit: " ++ Maybe.withDefault "-" model.lastHit) ]
+                ]
+            , div [ class "col text-right" ]
+                [ div [ class "dropdown" ]
+                    [ button [ class "btn btn-secondary dropdown-toggle", href "#", attribute "role" "button", id "dropdownMenuButton", attribute "data-toggle" "dropdown" ] [ text "Game Mode" ]
+                    , div [ class "dropdown-menu", attribute "aria-labelledby" "dropdownMenuButton" ]
+                        [ button [ class "dropdown-item", classList [ ( "active", model.gameMode == Standard ) ], attribute "type" "button", attribute "data-target" "#modal-change-mode", attribute "data-toggle" "modal", onClick (SelectGameMode Standard) ] [ text "Standard 501" ]
+                        , button [ class "dropdown-item", classList [ ( "active", model.gameMode == Cricket ) ], attribute "type" "button", attribute "data-target" "#modal-change-mode", attribute "data-toggle" "modal",  onClick (SelectGameMode Cricket) ] [ text "Cricket Light" ]
+                        ]
+                    ]
                 ]
             ]
         , div [ class "row mb-4" ]
@@ -227,7 +261,7 @@ body model =
                         [ h5 [] [ text "New player" ]
                         ]
                     , div [ class "modal-body" ]
-                        [ input [ class "form-control", type_ "text", placeholder "Name", onInput NewPlayerNameChange, value model.newPlayerName ] []
+                        [ input [ class "form-control", type_ "text", placeholder "Name", autofocus True, onInput NewPlayerNameChange, value model.newPlayerName ] []
                         ]
                     , div [ class "modal-footer" ]
                         [ button [ class "btn btn-secondary", attribute "data-dismiss" "modal" ] [ text "Close" ]
@@ -252,29 +286,109 @@ body model =
                     ]
                 ]
             ]
+        , div [ class "modal fade", id "modal-change-mode", attribute "role" "dialog" ]
+            [ div [ class "modal-dialog" ]
+                [ div [ class "modal-content" ]
+                    [ div [ class "modal-header" ]
+                        [ h5 [] [ text "Change game mode" ]
+                        ]
+                    , div [ class "modal-body" ]
+                        [ text "Do you want to change the game mode and reset the current game?"
+                        ]
+                    , div [ class "modal-footer" ]
+                        [ button [ class "btn btn-secondary", attribute "data-dismiss" "modal" ] [ text "Close" ]
+                        , button [ class "btn btn-primary", attribute "data-dismiss" "modal", onClick (ChangeGameMode model.selectMode) ] [ text "Change" ]
+                        ]
+                    ]
+                ]
+            ]
         ]
     ]
-
-
-renderHit : Int -> Html Msg
-renderHit hit =
-    div [ class "badge badge-pill hit-badge", classList [ ( "badge-danger", hit == 0 ), ( "badge-success", hit /= 0 ) ] ] [ text (String.fromInt hit) ]
-
-
-renderScore : GameMode -> ( String, Int ) -> Html Msg
-renderScore gameMode score =
-    case gameMode of
-        Standard ->
-            text (String.fromInt (Tuple.second score))
 
 
 renderRow : GameMode -> Player -> Html Msg
 renderRow gameMode player =
     tr [ classList [ ( "table-primary", player.state == "Playing" ), ( "table-success", player.state == "Finished" ), ( "table-secondary", player.state == "Blocked" ) ] ]
-        [ td [] [ text player.name ]
+        [ td []
+            [ text player.name
+            , button [ class "close", onClick (RemovePlayer player.uuid) ] [ span [ attribute "aria-hidden" "true" ] [ text "×" ] ]
+            ]
         , td [ class "hits-cell" ] ([] ++ List.map renderHit player.hits)
-        , td [] ([] ++ List.map (renderScore gameMode) player.score)
+        , td [] ([] ++ singleton (renderScore gameMode player.score))
         ]
+
+
+renderHit : String -> Html Msg
+renderHit hit =
+    div [ class "badge badge-pill hit-badge", classList [ ( "badge-danger", hit == "Miss" ), ( "badge-success", hit /= "Miss" ) ] ] [ text hit ]
+
+
+renderScore : GameMode -> List ( String, Int ) -> Html Msg
+renderScore gameMode scores =
+    case gameMode of
+        Standard ->
+            div [] ([] ++ List.map (\score -> text <| String.fromInt score) (List.map Tuple.second scores))
+
+        Cricket ->
+            table [] ([] ++ renderCricketScore scores)
+
+
+renderCricketScore : List ( String, Int ) -> List (Html Msg)
+renderCricketScore scores =
+    [ thead []
+        [ tr [] ([] ++ List.map (\field -> th [] [ text field ]) (List.map Tuple.first scores)) ]
+    , tbody []
+        [ tr [] ([] ++ List.map renderCricketPoints scores) ]
+    ]
+
+
+renderCricketPoints : ( String, Int ) -> Html Msg
+renderCricketPoints ( _, score ) =
+    td []
+        [ div []
+            [ cricketMarker score
+            ]
+        ]
+
+
+justOrNothing : Bool -> a -> Maybe a
+justOrNothing condition value =
+    if condition then
+        Just value
+
+    else
+        Nothing
+
+
+listFlatten : Maybe (Svg msg) -> List (Svg msg) -> List (Svg msg)
+listFlatten value list =
+    case value of
+        Just val ->
+            list ++ [ val ]
+
+        Nothing ->
+            []
+
+
+cricketMarker : Int -> Html msg
+cricketMarker state =
+    svg [ width "20", height "20", viewBox "0 0 32 32" ]
+        (foldr listFlatten
+            []
+            [ justOrNothing (state >= 1) (line [ x1 "2", y1 "30", x2 "30", y2 "2", style "fill" "none", style "stroke" "#000", style "stroke-width" "4px" ] [])
+            , justOrNothing (state >= 2) (line [ x1 "2", y1 "2", x2 "30", y2 "30", style "fill" "none", style "stroke" "#000", style "stroke-width" "4px" ] [])
+            , justOrNothing (state >= 3) (circle [ cx "16", cy "16", r "14", style "fill" "none", style "stroke" "#000", style "stroke-width" "4px" ] [])
+            ]
+        )
+
+
+
+{- ([]
+   ++ (if state >= 1 then [line [x1 "2", y1 "30", x2 "30", y2 "2", style "fill" "none", style "stroke" "#000", style "stroke-width" "3px"] []] else [])
+   ++ (if state >= 2 then [line [x1 "2", y1 "2", x2 "30", y2 "30", style "fill" "none", style "stroke" "#000", style "stroke-width" "3px"] []] else [])
+   ++ (if state >= 3 then [circle [cx "16", cy "16", r "14", style "fill" "none", style "stroke" "#000", style "stroke-width" "3px"] []] else [])
+   )
+-}
 
 
 dartBoard : Model -> Html msg
@@ -412,8 +526,31 @@ dartBoard model =
 
 segment : Model -> String -> String -> String -> Html msg
 segment model fieldName color shape =
-    path [style "fill" (if model.lastHit == Just fieldName then "#29B6F6" else color), d shape] []
+    path
+        [ style "fill"
+            (if model.lastHit == Just fieldName then
+                "#29B6F6"
+
+             else
+                color
+            )
+        , d shape
+        ]
+        []
+
 
 circleSegment : Model -> String -> String -> String -> String -> String -> Html msg
 circleSegment model fieldName color cx1 cy1 r1 =
-    circle [cx cx1, cy cy1, r r1, style "fill" (if model.lastHit == Just fieldName then "#29B6F6" else color)] []
+    circle
+        [ cx cx1
+        , cy cy1
+        , r r1
+        , style "fill"
+            (if model.lastHit == Just fieldName then
+                "#29B6F6"
+
+             else
+                color
+            )
+        ]
+        []

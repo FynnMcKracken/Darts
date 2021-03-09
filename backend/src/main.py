@@ -42,14 +42,19 @@ async def counter(websocket, path):
         async for message in websocket:
             try:
                 data = json.loads(message)
+                print("received: ", data)
+                if "gameMode" in data:
+                    GAMECONTROLLER.process_change_mode(data["gameMode"])
                 if "startGame" in data:
                     GAMECONTROLLER.start_game()
                 if "nextPlayer" in data:
                     GAMECONTROLLER.next_player()
                 if "newPlayer" in data:
                     GAMECONTROLLER.add_new_player(data["newPlayer"])
+                if "removePlayer" in data:
+                    GAMECONTROLLER.remove_player(data["removePlayer"])
                 if "missHit" in data:
-                    GAMECONTROLLER.process_miss()
+                    GAMECONTROLLER.random_hit()
                 if "resetScore" in data:
                     GAMECONTROLLER.reset_game()
                 await notify_users()
