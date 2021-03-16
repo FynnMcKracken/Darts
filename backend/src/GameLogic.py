@@ -136,8 +136,8 @@ class CricketLightGameLogic(CyclicGameLogic):
                     print("Finished with", self.active_player.score)
                     self.active_player.state = PlayerState.FINISHED
                     return GameState.FINISHED
-                elif len(self.active_player.hits) == 3:
-                    self.active_player.state = PlayerState.BLOCKED
+            if len(self.active_player.hits) >= 3:
+                self.active_player.state = PlayerState.BLOCKED
         return GameState.RUNNING
 
     def init_player(self, player: Player):
