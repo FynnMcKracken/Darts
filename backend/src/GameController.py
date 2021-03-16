@@ -9,13 +9,14 @@ class GameController:
     def __init__(self):
         self.lastHit = "Miss"
         self.running_state = GameState.IDLE
-        self.gameLogic = CricketLightGameLogic()
+        self.gameLogic = StandardGameLogic()
 
     def process_change_mode(self, message: str):
         if message == GameMode.STANDARD.value:
             self.__change_logic(StandardGameLogic())
         elif message == GameMode.CRICKET.value:
             self.__change_logic(CricketLightGameLogic())
+        self.running_state = GameState.IDLE
 
     def __change_logic(self, logic: GameLogic):
         for player in self.gameLogic.players:
