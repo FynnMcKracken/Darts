@@ -55,7 +55,7 @@ async def counter(websocket, path):
                 if "removePlayer" in data:
                     GAMECONTROLLER.remove_player(data["removePlayer"])
                 if "missHit" in data:
-                    GAMECONTROLLER.random_hit()
+                    GAMECONTROLLER.process_miss()
                 if "resetScore" in data:
                     GAMECONTROLLER.reset_game()
                 await notify_users()
