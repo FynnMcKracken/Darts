@@ -1,7 +1,7 @@
 import json
 
-from src.GameLogic import CricketLightGameLogic, StandardGameLogic, GameLogic
-from src.helpers import GameState, GameMode
+from GameLogic import CricketLightGameLogic, StandardGameLogic, GameLogic
+from helpers import GameState, GameMode
 
 
 class GameController:

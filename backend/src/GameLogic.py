@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from random import choice
 from typing import List, Optional, Tuple, Dict
 
-from src.Player import Player, PlayerState
-from src.helpers import GameMode, GameState
+from Player import Player, PlayerState
+from helpers import GameMode, GameState
 
 HIT_ENUM: Dict[str, Tuple[int, int]] = {
     "20o": (20, 1), "20i": (20, 1), "20x2": (20, 2), "20x3": (20, 3),

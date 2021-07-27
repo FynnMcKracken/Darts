@@ -6,6 +6,7 @@ import serial_asyncio
 import websockets
 
 import GameController
+from GameLogic import HIT_ENUM
 
 HOST = '*'
 PORT = 50001
@@ -85,7 +86,7 @@ class Output(asyncio.Protocol):
             for line in lines[:-1]:
                 message = line.decode("ascii")
                 print('message received:', message)
-                if message in GameController.HIT_ENUM:
+                if message in HIT_ENUM:
                     GAMECONTROLLER.process_hit_message(message)
                     loop.create_task(notify_users())
 
