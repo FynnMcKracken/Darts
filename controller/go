@@ -1,7 +1,9 @@
 #!/bin/sh
 
-BOARD=arduino:avr:nano:cpu=atmega328old
+BOARD=arduino:avr:micro
 PROJECT_NAME=DartsController
+
+DARTBOARD=$(cat dartboard)
 
 DEPLOY_HOST=$(cat deploy-host)
 DEPLOY_DEVICE=$(cat deploy-device)
@@ -28,13 +30,16 @@ go() {
 }
 
 build() {
-  arduino-cli compile -b $BOARD $PROJECT_NAME
+  set -x
+  arduino-cli compile -b $BOARD --build-property "build.extra_flags=\"-DDARTBOARD_$DARTBOARD\"" $PROJECT_NAME
 }
 
 deploy() {
-  scp -rp $PROJECT_NAME "$DEPLOY_HOST":$DEPLOY_PATH/$PROJECT_NAME
+  set -x
+  scp -rp $PROJECT_NAME "$DEPLOY_HOST":$DEPLOY_PATH/
   ssh "$DEPLOY_HOST" << +
-  arduino-cli compile -b $BOARD $DEPLOY_PATH/$PROJECT_NAME
+  set -x
+  arduino-cli compile -b $BOARD --build-property "build.extra_flags=\"-DDARTBOARD_$DARTBOARD\"" $DEPLOY_PATH/$PROJECT_NAME || { { set +x; } 2> /dev/null; exit 1; }
   arduino-cli upload -v -p $DEPLOY_DEVICE -b $BOARD $DEPLOY_PATH/$PROJECT_NAME
 +
 }
