@@ -26,13 +26,12 @@ go() {
 build() {
   elm make src/Main.elm --output target/main.js
   cp src/index.html target/index.html
-  mkdir target/css
-  cp -r src/css target/css
+  cp -r src/css target/
 }
 
 deploy() {
   build
-  scp target/* "$DEPLOY_HOST":$DEPLOY_PATH/
+  scp -r target/* "$DEPLOY_HOST":$DEPLOY_PATH/
 }
 
 print_usage() {
