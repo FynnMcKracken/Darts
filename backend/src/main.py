@@ -108,7 +108,7 @@ loop = asyncio.get_event_loop()
 start_server = websockets.serve(counter, HOST, PORT)
 
 # Serial init
-usb_device_file = open("../usb_device", "r")
+usb_device_file = open("../controller-device", "r")
 usb_device = usb_device_file.read().rstrip("\n")
 coro = serial_asyncio.create_serial_connection(loop, Output, usb_device, baudrate=9600)
 

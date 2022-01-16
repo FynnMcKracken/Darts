@@ -3,10 +3,10 @@
 BOARD=arduino:avr:micro
 PROJECT_NAME=DartsController
 
-DARTBOARD=$(cat dartboard)
+DARTBOARD=$(cat ../config/dartboard)
 
-DEPLOY_HOST=$(cat deploy-host)
-DEPLOY_DEVICE=$(cat deploy-device)
+DEPLOY_HOST=$(cat ../config/deploy-host)
+DEPLOY_DEVICE=$(cat ../config/controller-device)
 DEPLOY_PATH=controller
 
 go() {
@@ -36,7 +36,7 @@ build() {
 
 deploy() {
   set -x
-  scp -rp $PROJECT_NAME "$DEPLOY_HOST":$DEPLOY_PATH/
+  rsync -r -l -t -I --delete -z -h $PROJECT_NAME "$DEPLOY_HOST:$DEPLOY_PATH/"
   ssh "$DEPLOY_HOST" << +
   set -x
   arduino-cli compile -b $BOARD --build-property "build.extra_flags=\"-DDARTBOARD_$DARTBOARD\"" $DEPLOY_PATH/$PROJECT_NAME || { { set +x; } 2> /dev/null; exit 1; }

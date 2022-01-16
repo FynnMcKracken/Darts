@@ -1,13 +1,10 @@
 #!/bin/sh
 
 DEPLOY_HOST=$(cat ../config/deploy-host)
-DEPLOY_PATH=frontend
+DEPLOY_PATH=backend
 
 go() {
   case $1 in
-    build)
-      build
-      ;;
     deploy)
       deploy
       ;;
@@ -23,16 +20,14 @@ go() {
   esac
 }
 
-build() {
-  set -x
-  elm make src/Main.elm --output target/main.js
-  cp src/index.html target/index.html
-  cp -r src/css target/
-}
-
 deploy() {
-  build
-  rsync -r -l -t -I --delete -z -h target/* "$DEPLOY_HOST:$DEPLOY_PATH/"
+  set -x
+  rsync -r -l -t -I --delete -z -h src "$DEPLOY_HOST:$DEPLOY_PATH/"
+  scp -p ../config/controller-device "$DEPLOY_HOST:$DEPLOY_PATH/"
+  ssh "$DEPLOY_HOST" << +
+  set -x
+  sudo systemctl restart darts
++
 }
 
 print_usage() {
@@ -40,8 +35,8 @@ print_usage() {
 }
 
 error() {
-	echo "$1"
-	exit 1
+  echo "$1"
+  exit 1
 }
 
 go "$1"
