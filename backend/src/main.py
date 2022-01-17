@@ -3,6 +3,7 @@ from asyncio.transports import BaseTransport
 
 import json
 import serial_asyncio
+import serial.serialutil
 import websockets
 
 import GameController
@@ -92,6 +93,7 @@ class Output(asyncio.Protocol):
 
     def connection_lost(self, exc):
         print('port closed')
+        asyncio.gather(connect_controller())
 
     def pause_writing(self):
         print('pause writing')
@@ -110,10 +112,17 @@ start_server = websockets.serve(counter, HOST, PORT)
 # Serial init
 usb_device_file = open("../controller-device", "r")
 usb_device = usb_device_file.read().rstrip("\n")
-coro = serial_asyncio.create_serial_connection(loop, Output, usb_device, baudrate=9600)
 
-group2 = asyncio.gather(coro)
-group1 = asyncio.gather(start_server)
+async def connect_controller():
+    while True:
+        try:
+            await serial_asyncio.create_serial_connection(loop, Output, usb_device, baudrate=9600)
+            break
+        except serial.serialutil.SerialException:
+            await asyncio.sleep(10)
+
+asyncio.gather(connect_controller())
+asyncio.gather(start_server)
 
 print("Server started.")
 loop.run_forever()
