@@ -64,6 +64,7 @@ type alias Player =
     , name : String
     , score : List ( String, Int )
     , hits : List String
+    , active : Bool
     , state : String
     }
 
@@ -100,22 +101,22 @@ update msg model =
             ( model, Cmd.none )
 
         StartGame ->
-            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "startGame", Encode.null ) ])) )
-
-        NextPlayer ->
-            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "nextPlayer", Encode.null ) ])) )
+            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "StartGame", Encode.object [] ) ])) )
 
         ResetScore ->
-            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "resetScore", Encode.null ) ])) )
+            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "ResetGame", Encode.object [] ) ])) )
+
+        NextPlayer ->
+            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "NextPlayer", Encode.object [] ) ])) )
 
         MissHit ->
-            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "missHit", Encode.null ) ])) )
+            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "MissHit", Encode.object [] ) ])) )
 
         NewPlayerNameChange name ->
             ( { model | newPlayerName = name }, Cmd.none )
 
         AddNewPlayer ->
-            ( { model | newPlayerName = "" }, sendMessage (Encode.encode 0 (Encode.object [ ( "newPlayer", Encode.string model.newPlayerName ) ])) )
+            ( { model | newPlayerName = "" }, sendMessage (Encode.encode 0 (Encode.object [ ( "AddPlayer", Encode.object [ ( "name", Encode.string model.newPlayerName ) ] ) ])) )
 
         RemovePlayer uuid ->
             ( model, sendMessage (Encode.encode 0 (removePlayer uuid)) )
@@ -127,15 +128,19 @@ update msg model =
             ( { model | selectMode = Cricket }, Cmd.none )
 
         ChangeGameMode Standard ->
-            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "gameMode", Encode.string "Standard" ) ])) )
+            ( model, sendMessage (Encode.encode 0 (changeGameMode "Standard")) )
 
         ChangeGameMode Cricket ->
-            ( model, sendMessage (Encode.encode 0 (Encode.object [ ( "gameMode", Encode.string "Cricket" ) ])) )
+            ( model, sendMessage (Encode.encode 0 (changeGameMode "Cricket")) )
 
 
 removePlayer : String -> Encode.Value
 removePlayer uuid =
-    Encode.object [ ( "removePlayer", Encode.string uuid ) ]
+    Encode.object [ ( "RemovePlayer", Encode.object [ ( "uuid", Encode.string uuid ) ] ) ]
+
+changeGameMode : String -> Encode.Value
+changeGameMode gameMode =
+    Encode.object [ ( "ChangeGameMode", Encode.object [ ( "gameMode", Encode.string gameMode ) ] ) ]
 
 
 
@@ -179,11 +184,12 @@ gameModeDecoder gameMode =
 playersDecoder : Decoder (List Player)
 playersDecoder =
     Decode.list
-        (Decode.map5 Player
+        (Decode.map6 Player
             (Decode.field "uuid" Decode.string)
             (Decode.field "name" Decode.string)
             (Decode.field "score" (Decode.keyValuePairs Decode.int))
             (Decode.field "hits" (Decode.list Decode.string))
+            (Decode.field "active" Decode.bool)
             (Decode.field "state" Decode.string)
         )
 
@@ -328,7 +334,7 @@ bodyLoaded model gameState =
 
 renderRow : GameMode -> Player -> Html Msg
 renderRow gameMode player =
-    tr [ classList [ ( "table-primary", player.state == "Playing" ), ( "table-success", player.state == "Finished" ), ( "table-secondary", player.state == "Blocked" ) ] ]
+    tr [ classList [ ( "table-primary", player.active ), ( "table-success", player.state == "FinishedGame" ), ( "table-secondary", player.state == "FinishedRound" ) ] ]
         [ td []
             [ text player.name
             , button [ class "close", onClick (RemovePlayer player.uuid) ] [ span [ attribute "aria-hidden" "true" ] [ text "×" ] ]

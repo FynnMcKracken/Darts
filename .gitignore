@@ -1,2 +1,8 @@
 /config
 .idea
+
+/backend/.bsp
+/backend/target
+/backend/project/target
+/backend/project/project/target
+/backend/controller-device

@@ -43,8 +43,7 @@ The controller can be deployed by running `./go deploy` in the directory _contro
 On the Raspberry Pi run
 
 ```
-sudo apt install python3-pip
-pip3 install pyserial-asyncio websockets
+sudo apt install default-jdk
 ```
 
 To have the backend run as a service create _/lib/systemd/system/darts.service_ on the Raspberry Pi with
@@ -57,9 +56,10 @@ After=multi-user.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/backend/src
-ExecStart=python3 -u main.py
-Restart=on-abort
+WorkingDirectory=/home/pi/backend
+ExecStart=java -jar Darts-Backend-assembly-0.1.0.jar
+SuccessExitStatus=143
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
