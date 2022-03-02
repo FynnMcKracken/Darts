@@ -2,7 +2,7 @@
 
 ## Hardware
 
-Raspberry Pi Zero W and Arduino Micro
+Raspberry Pi Zero 2 W and Arduino Micro
 
 ## Getting started
 
