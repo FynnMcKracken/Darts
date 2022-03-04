@@ -9,7 +9,7 @@ case class Cricket(
   lastHit: Option[Hit],
   players: List[Player[Score]]
 ) extends Game[Score, Cricket](GameMode.Cricket) {
-  override val companion: Game.Companion[Score] = Cricket
+  override val companion: Game.Companion.Aux[Score] = Cricket
 
   override protected def processHitForPlayer(player: Player[Score], hit: Hit): Player[Score] = {
     val hits = player.hits :+ hit
@@ -47,7 +47,7 @@ case class Cricket(
     score.`25` == 3
 }
 
-object Cricket extends Game.Companion[Score] {
+object Cricket extends Game.Companion {
   case class Score(
     points: Int,
     `15`: Int,

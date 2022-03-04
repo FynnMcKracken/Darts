@@ -14,7 +14,7 @@ abstract class Game[Score: Encoder, Self <: Game[Score, Self]](val gameMode: Gam
   val lastHit: Option[Hit]
   val players: List[Player[Score]]
 
-  val companion: Game.Companion[Score]
+  val companion: Game.Companion.Aux[Score]
 
   def start: Self = this.copy(running = true, lastHit = None).advanceRound
 
@@ -107,14 +107,10 @@ object Game {
     Game(GameMode.Standard, players)
   }
 
-  def apply(gameMode: GameMode, players: List[Player[_]]): Game[_, _] = gameMode match {
-    case GameMode.Standard =>
-      val players1 = players.map(player => newPlayer(player.uuid, player.name, Standard.initialScore))
-      Standard(running = false, lastHit = None, players1)
-
-    case GameMode.Cricket =>
-      val players1 = players.map(player => newPlayer(player.uuid, player.name, Cricket.initialScore))
-      Cricket(running = false, lastHit = None, players1)
+  def apply(gameMode: GameMode, players: List[Player[_]]): Game[_, _] = {
+    val companion = Companion(gameMode)
+    val players1: List[Player[companion.Score]] = players.map(player => newPlayer(player.uuid, player.name, companion.initialScore))
+    companion(running = false, lastHit = None, players = players1)
   }
 
   private def newPlayer[Score](uuid: String, name: String, score: Score): Player[Score] = Player[Score](
@@ -126,8 +122,21 @@ object Game {
     state = PlayerState.Normal
   )
 
-  abstract class Companion[Score] {
+  abstract class Companion {
+    type Score
+
+    def apply(running: Boolean, lastHit: Option[Hit], players: List[Player[Score]]): Game[Score, _]
+
     val initialScore: Score
+  }
+
+  object Companion {
+    type Aux[Score1] = Companion {type Score = Score1}
+
+    def apply(gameMode: GameMode): Companion = gameMode match {
+      case GameMode.Standard => Standard
+      case GameMode.Cricket => Cricket
+    }
   }
 
   implicit def encoder[Score: Encoder, Self <: Game[Score, Self]]: Encoder[Game[Score, Self]] =

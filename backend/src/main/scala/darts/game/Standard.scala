@@ -9,7 +9,7 @@ case class Standard(
   lastHit: Option[Hit],
   players: List[Player[Score]]
 ) extends Game[Score, Standard](GameMode.Standard) {
-  override val companion: Game.Companion[Score] = Standard
+  override val companion: Game.Companion.Aux[Score] = Standard
 
   override protected def processHitForPlayer(player: Player[Score], hit: Hit): Player[Score] = {
     val hits = player.hits :+ hit
@@ -23,7 +23,7 @@ case class Standard(
   }
 }
 
-object Standard extends Game.Companion[Score] {
+object Standard extends Game.Companion {
   case class Score(points: Int)
 
   val initialScore: Score = Score(501)
