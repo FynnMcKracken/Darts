@@ -13,12 +13,11 @@ import scala.util.Try
 
 
 object Controller {
-
-  def run(gameTopic: Topic[IO, Game[_, _]], game: Ref[IO, Game[_, _]]): IO[Unit] = for {
+  def run(appStateTopic: Topic[IO, AppState[_]], appState: Ref[IO, AppState[_]]): IO[Unit] = for {
     controllerDevice <- readFile("controller-device").map(_.stripLineEnd)
 
     _ <- openSerialPort(controllerDevice).bracket { serialPort =>
-      gameTopic.publish(stream(serialPort).through(process(game))).compile.drain
+      appStateTopic.publish(stream(serialPort).through(process(appState))).compile.drain
     }{ serialPort =>
       closeSerialPort(serialPort)
     }
@@ -31,10 +30,12 @@ object Controller {
     .through(fs2.text.lines)
     .mapFilter(hit => Try(Hit.valueOf(hit)).toOption)
 
-  private def process(game: Ref[IO, Game[_, _]]): Pipe[IO, Hit, Game[_, _]] = _.evalMap { hit => for {
-    _ <- Logger[IO].debug(s"hit $hit")
-    game1 <- game.updateAndGet(_.processHit(hit))
-  } yield game1 }
+  private def process(appState: Ref[IO, AppState[_]]): Pipe[IO, Hit, AppState[_]] = _.evalMapFilter { hit =>
+    for {
+      _ <- Logger[IO].debug(s"hit $hit")
+      appState1 <- appState.optionUpdateAndGet(_.processHit(hit))
+    } yield appState1
+  }
 
   private def openSerialPort(controllerDevice: String): IO[SerialPort] = for {
     serialPort <- IO.delay(SerialPort.getCommPort(controllerDevice))
@@ -51,6 +52,5 @@ object Controller {
 
   private def closeSerialPort(serialPort: SerialPort): IO[Unit] = Logger[IO].info("close controller port") *> IO.delay(serialPort.closePort())
 
-  private implicit def logger[F[_]: Sync]: Logger[F] = Slf4jLogger.getLogger[F]
-
+  private given[F[_]: Sync]: Logger[F] = Slf4jLogger.getLogger[F]
 }

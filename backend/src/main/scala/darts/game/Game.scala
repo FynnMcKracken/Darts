@@ -1,7 +1,6 @@
 package darts.game
 
-import darts.game.Game.newPlayer
-import darts.spanNot
+import darts.{AppState, spanNot}
 import io.circe.generic.auto.*
 import io.circe.syntax.*
 import io.circe.{Encoder, Json}
@@ -9,14 +8,10 @@ import io.circe.{Encoder, Json}
 import java.util.UUID
 
 
-abstract class Game[Score: Encoder, Self <: Game[Score, Self]](val gameMode: GameMode) { self: Self =>
+abstract class Game[Score: Encoder, Self <: Game[Score, Self]: Encoder] { self: Self =>
   val running: Boolean
   val lastHit: Option[Hit]
   val players: List[Player[Score]]
-
-  val companion: Game.Companion.Aux[Score]
-
-  def start: Self = this.copy(running = true, lastHit = None).advanceRound
 
   def advancePlayer: Self = {
     val (playersBeforeActive, activeAndFollowingPlayers) = players.spanNot(_.active)
@@ -61,16 +56,6 @@ abstract class Game[Score: Encoder, Self <: Game[Score, Self]](val gameMode: Gam
     this.copy(players = players1)
   }
 
-  def addPlayer(name: String): Self = {
-    val players1 = players :+ newPlayer(UUID.randomUUID().toString, name, companion.initialScore) // TODO wrap generating uuid in IO?
-    this.copy(players = players1)
-  }
-
-  def removePlayer(uuid: String): Self = {
-    val players1 = players.filterNot(_.uuid == uuid)
-    this.copy(players = players1)
-  }
-
   def processHit(hit: Hit): Self = {
     val (playersBeforeActive, activeAndFollowingPlayers) = players.spanNot(_.active)
 
@@ -92,55 +77,42 @@ abstract class Game[Score: Encoder, Self <: Game[Score, Self]](val gameMode: Gam
 
   def copy(running: Boolean = running, lastHit: Option[Hit] = lastHit, players: List[Player[Score]] = players): Self
 
-  def asJson: Json = EncoderOps(this).asJson(Game.encoder)
+  def asJson: Json = Json.obj(
+    (this.getClass.getSimpleName, summon[Encoder[Self]](this))
+  )
 }
 
 object Game {
-  val initial: Game[_, _] = {
-    val players = List(
-      newPlayer(UUID.randomUUID().toString, "Hans, Only", Standard.initialScore),
-      newPlayer(UUID.randomUUID().toString, "A", Standard.initialScore),
-      newPlayer(UUID.randomUUID().toString, "B", Standard.initialScore),
-      newPlayer(UUID.randomUUID().toString, "C", Standard.initialScore),
-    )
-
-    Game(GameMode.Standard, players)
-  }
-
-  def apply(gameMode: GameMode, players: List[Player[_]]): Game[_, _] = {
-    val companion = Companion(gameMode)
-    val players1: List[Player[companion.Score]] = players.map(player => newPlayer(player.uuid, player.name, companion.initialScore))
-    companion(running = false, lastHit = None, players = players1)
-  }
-
-  private def newPlayer[Score](uuid: String, name: String, score: Score): Player[Score] = Player[Score](
-    uuid = uuid,
-    name = name,
-    score = score,
-    hits = List(),
-    active = false,
-    state = PlayerState.Normal
-  )
+  def apply(gameMode: GameMode, players: List[AppState.PlayerCreation.Player]): Game[_, _] = Companion(gameMode)(players)
 
   abstract class Companion {
     type Score
 
+    val initialScore: Score
+
+    def apply(players: List[AppState.PlayerCreation.Player]): Game[Score, _] = {
+      val players1: List[Player[Score]] = players.map(player => newPlayer(player.uuid, player.name))
+      apply(running = true, lastHit = None, players = players1).advanceRound
+    }
+
     def apply(running: Boolean, lastHit: Option[Hit], players: List[Player[Score]]): Game[Score, _]
 
-    val initialScore: Score
+    private def newPlayer(uuid: String, name: String): Player[Score] = Player[Score](
+      uuid = uuid,
+      name = name,
+      score = initialScore,
+      hits = List(),
+      active = false,
+      state = PlayerState.Normal
+    )
   }
 
   object Companion {
-    type Aux[Score1] = Companion {type Score = Score1}
-
     def apply(gameMode: GameMode): Companion = gameMode match {
       case GameMode.Standard => Standard
       case GameMode.Cricket => Cricket
     }
   }
 
-  implicit def encoder[Score: Encoder, Self <: Game[Score, Self]]: Encoder[Game[Score, Self]] =
-    Encoder.forProduct4("gameMode", "running", "lastHit", "players"){ (game: Game[Score, Self]) =>
-      (game.gameMode, game.running, game.lastHit, game.players)
-    }
+  given Encoder[Game[_, _]] = (game: Game[_, _]) => game.asJson
 }

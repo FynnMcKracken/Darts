@@ -8,9 +8,7 @@ case class Standard(
   running: Boolean,
   lastHit: Option[Hit],
   players: List[Player[Score]]
-) extends Game[Score, Standard](GameMode.Standard) {
-  override val companion: Game.Companion.Aux[Score] = Standard
-
+) extends Game[Score, Standard] {
   override protected def processHitForPlayer(player: Player[Score], hit: Hit): Player[Score] = {
     val hits = player.hits :+ hit
     val score = Score(player.score.points - hit.points)

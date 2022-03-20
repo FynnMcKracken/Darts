@@ -14,8 +14,7 @@ enum GameMode:
   case Cricket
 
 object GameMode:
-  implicit val encoder: Encoder[GameMode] = Encoder.encodeString.contramap(_.toString)
-  implicit val decoder: Decoder[GameMode] = Decoder.decodeString.emapTry(s => Try(GameMode.valueOf(s)))
+  given Decoder[GameMode] = Decoder.decodeString.emapTry(s => Try(GameMode.valueOf(s)))
 
 
 case class Player[Score](
@@ -34,7 +33,7 @@ enum PlayerState:
   case FinishedGame
 
 object PlayerState:
-  implicit val encoder: Encoder[PlayerState] = Encoder.encodeString.contramap(_.toString)
+  given Encoder[PlayerState] = Encoder.encodeString.contramap(_.toString)
 
 
 enum Hit(val value: Int, val multiplier: Int):
@@ -147,5 +146,5 @@ enum Hit(val value: Int, val multiplier: Int):
   case `Bullseyex2` extends Hit(25, 2)
 
 object Hit:
-  implicit val encoder: Encoder[Hit] = Encoder.encodeString.contramap(_.toString)
-  implicit val decoder: Decoder[Hit] = Decoder.decodeString.emapTry(s => Try(Hit.valueOf(s)))
+  given Encoder[Hit] = Encoder.encodeString.contramap(_.toString)
+  given Decoder[Hit] = Decoder.decodeString.emapTry(s => Try(Hit.valueOf(s)))

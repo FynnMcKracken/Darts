@@ -8,9 +8,7 @@ case class Cricket(
   running: Boolean,
   lastHit: Option[Hit],
   players: List[Player[Score]]
-) extends Game[Score, Cricket](GameMode.Cricket) {
-  override val companion: Game.Companion.Aux[Score] = Cricket
-
+) extends Game[Score, Cricket] {
   override protected def processHitForPlayer(player: Player[Score], hit: Hit): Player[Score] = {
     val hits = player.hits :+ hit
 
