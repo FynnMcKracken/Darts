@@ -1,6 +1,8 @@
 port module Lib exposing (..)
 
 import Json.Encode as Encode
+import Process
+import Task
 
 
 port sendMessage : String -> Cmd a
@@ -48,3 +50,10 @@ listFlatten value list =
 
         Nothing ->
             []
+
+
+delay : Float -> msg -> Cmd msg
+delay time msg =
+    Process.sleep time
+        |> Task.andThen (always <| Task.succeed msg)
+        |> Task.perform identity

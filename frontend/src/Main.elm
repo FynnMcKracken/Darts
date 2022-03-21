@@ -3,9 +3,10 @@ port module Main exposing (main)
 import Browser exposing (Document)
 import Game
 import GameSelection
-import Html exposing (Html, div, h1, main_, text)
+import Html exposing (Html, div, main_)
 import Html.Attributes exposing (class)
 import Json.Decode as Decode exposing (Decoder, Error)
+import Lib exposing (delay)
 import PlayerCreation
 import String
 
@@ -32,7 +33,8 @@ port messageReceiver : (Decode.Value -> a) -> Sub a
 
 
 type Model
-    = Loading
+    = Init -- used to prevent flashing the loader when starting the app
+    | Loading
     | PlayerCreation PlayerCreation.Model
     | GameSelection GameSelection.Model
     | Game Game.Model
@@ -40,7 +42,7 @@ type Model
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( Loading, Cmd.none )
+    ( Init, delay 500 InitDelayExpired )
 
 
 
@@ -48,7 +50,8 @@ init _ =
 
 
 type Msg
-    = ReceiveModel (Result Error Model)
+    = InitDelayExpired
+    | ReceiveModel (Result Error Model)
     | PlayerCreationMessage PlayerCreation.Message
     | GameSelectionMessage GameSelection.Message
     | GameMessage Game.Message
@@ -57,6 +60,9 @@ type Msg
 update : Msg -> Model -> ( Model, Cmd Msg )
 update message model =
     case ( model, message ) of
+        ( Init, InitDelayExpired ) ->
+            ( Loading, Cmd.none )
+
         ( _, ReceiveModel (Ok model1) ) ->
             ( model1, Cmd.none )
 
@@ -151,6 +157,9 @@ title _ =
 body : Model -> List (Html Msg)
 body model =
     [ case model of
+        Init ->
+            main_ [] []
+
         Loading ->
             bodyLoading
 
@@ -167,11 +176,8 @@ body model =
 
 bodyLoading : Html Msg
 bodyLoading =
-    main_ [ class "container" ]
-        [ div [ class "row mt-4" ]
-            [ div [ class "col" ]
-                [ h1 [] [ text "Dart" ]
-                , div [] [ text "Loading…" ]
-                ]
+    main_ [ class "loading fill" ]
+        [ div [ class "spinner-outer" ]
+            [ div [ class "spinner" ] []
             ]
         ]
