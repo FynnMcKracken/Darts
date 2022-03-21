@@ -59,10 +59,6 @@ modelDecoder model =
     Decode.field "GameSelection" <| modelDecoder1 model
 
 
-
--- TODO preserve selectMode
-
-
 modelDecoder1 : Maybe Model -> Decoder Model
 modelDecoder1 model =
     let
