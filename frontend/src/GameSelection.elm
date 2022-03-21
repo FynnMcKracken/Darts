@@ -24,6 +24,7 @@ type alias Model =
 type Message
     = SelectGameMode GameMode
     | StartGame
+    | Back
 
 
 update : Message -> Model -> ( Model, Cmd Message )
@@ -35,10 +36,18 @@ update message model =
         StartGame ->
             ( model, startGame model.selectedGameMode )
 
+        Back ->
+            ( model, back )
+
 
 startGame : GameMode -> Cmd Message
 startGame gameMode =
     sendJsonMessage <| Encode.object [ ( "StartGame", Encode.object [ ( "gameMode", encodeGameMode gameMode ) ] ) ]
+
+
+back : Cmd Message
+back =
+    sendJsonMessage <| Encode.object [ ( "Back", Encode.object [] ) ]
 
 
 
@@ -75,6 +84,7 @@ body model =
                 [ h1 [] [ text "Dart" ]
                 , gameModeRadio model Standard
                 , gameModeRadio model Cricket
+                , button [ class "btn btn-outline-secondary game-button", onClick Back ] [ text "Back" ]
                 , button [ class "btn btn-primary game-button", onClick StartGame ] [ text "Start Game" ]
                 ]
             ]

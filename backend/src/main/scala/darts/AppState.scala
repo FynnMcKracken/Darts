@@ -70,12 +70,14 @@ object AppState {
     import darts.AppState.GameSelection.ClientMessage
     override def processClientMessage1(message: ClientMessage): AppState[_] = message match {
       case ClientMessage.StartGame(gameMode) => Game(game.Game(gameMode, players))
+      case ClientMessage.Back => PlayerCreation(players)
     }
   }
 
   object GameSelection {
     enum ClientMessage:
       case StartGame(gameMode: GameMode)
+      case Back
   }
 
 
@@ -86,7 +88,7 @@ object AppState {
     override def processClientMessage1(message: ClientMessage): AppState[_] = message match {
       case ClientMessage.NextPlayer => copy(game = game.advancePlayer)
       case ClientMessage.MissHit => copy(game = game.processHit(Hit.Miss))
-      case ClientMessage.CloseGame => PlayerCreation(game.players.map(player => PlayerCreation.Player(player.uuid, player.name)))
+      case ClientMessage.CloseGame => GameSelection(game.players.map(player => PlayerCreation.Player(player.uuid, player.name)))
     }
   }
 
