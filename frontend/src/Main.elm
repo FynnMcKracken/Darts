@@ -100,10 +100,16 @@ subscriptions model =
 modelDecoder : Model -> Decoder Model
 modelDecoder model =
     Decode.oneOf
-        [ Decode.map PlayerCreation <| PlayerCreation.modelDecoder <| getPlayerCreationModel model
+        [ decodeLoading
+        , Decode.map PlayerCreation <| PlayerCreation.modelDecoder <| getPlayerCreationModel model
         , Decode.map GameSelection <| GameSelection.modelDecoder <| getGameSelectionModel model
         , Decode.map Game Game.modelDecoder
         ]
+
+
+decodeLoading : Decoder Model
+decodeLoading =
+    Decode.field "Loading" <| Decode.succeed Loading
 
 
 getPlayerCreationModel : Model -> Maybe PlayerCreation.Model

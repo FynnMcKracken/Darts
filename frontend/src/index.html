@@ -24,15 +24,33 @@
         <script>
 var app = Elm.Main.init();
 
-var socket = new WebSocket('ws://' + location.host + ':50001');
+function connectSocket() {
+  var socket = new WebSocket('ws://' + location.host + ':50001');
 
-app.ports.sendMessage.subscribe(function(message) {
-    socket.send(message);
-});
+  socket.onopen = function() {
+    app.ports.sendMessage.subscribe(function(message) {
+        socket.send(message);
+    });
 
-socket.addEventListener("message", function(event) {
-	app.ports.messageReceiver.send(JSON.parse(event.data));
-});
+    socket.addEventListener("message", function(event) {
+        app.ports.messageReceiver.send(JSON.parse(event.data));
+    });
+  };
+
+  socket.onclose = function(e) {
+    console.log('No connection to Server. Reconnect in 1 second.');
+    app.ports.messageReceiver.send({Loading: {}})
+    setTimeout(function() {
+      connectSocket();
+    }, 1000);
+  };
+
+  socket.onerror = function(err) {
+    socket.close();
+  };
+}
+
+connectSocket();
         </script>
 
     </body>
